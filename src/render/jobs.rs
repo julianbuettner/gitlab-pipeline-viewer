@@ -1,4 +1,4 @@
-use super::util::{center_truncate, duration_to_string};
+use super::util::{duration_to_string, render_columns, RenderColumnsAlignment};
 use crate::emoji::*;
 use gitlab::{Job, Runner, StatusState};
 use std::collections::HashMap;
@@ -13,7 +13,7 @@ for that job (status, runner, running time, etc)
 
 fn get_runner_name_text(runner: &Option<Runner>) -> String {
     match runner {
-        None => "[not picked up yet]".to_string(),
+        None => "".to_string(),
         Some(run) => match &run.name {
             None => "[unnamed runner]".to_string(),
             Some(v) => v.clone(),
@@ -32,7 +32,7 @@ fn get_stages(jobs: &Vec<Job>) -> Vec<String> {
     stages
 }
 
-fn get_job_lines(job: &Job, width: usize) -> Vec<String> {
+fn get_job_lines(job: &Job) -> Vec<String> {
     let mut symbol = match job.status {
         StatusState::Created => PAUSE,
         StatusState::WaitingForResource => PAUSE,
@@ -49,16 +49,12 @@ fn get_job_lines(job: &Job, width: usize) -> Vec<String> {
     if job.status == StatusState::Failed && job.allow_failure == true {
         symbol = GREY_EXCLAMATION;
     }
-    let mut lines = Vec::new();
+    let mut column = Vec::new();
 
-    let mut push_center = |text: &String| {
-        lines.push(center_truncate(text, width));
-    };
+    column.push("".to_string());
+    column.push(format!("{}  {}", symbol, job.name));
 
-    push_center(&" ".to_string());
-    push_center(&format!("{}  {}", symbol, job.name));
-
-    push_center(&format!(
+    column.push(format!(
         "{} {}",
         duration_to_string(job.duration.unwrap_or(0.0)),
         get_runner_name_text(&job.runner)
@@ -66,7 +62,7 @@ fn get_job_lines(job: &Job, width: usize) -> Vec<String> {
 
     match job.coverage {
         None => (),
-        Some(v) => push_center(&format!("Coverage: {}%", v)),
+        Some(v) => column.push(format!("Coverage: {}%", v)),
     }
 
     for artifact in job
@@ -75,64 +71,39 @@ fn get_job_lines(job: &Job, width: usize) -> Vec<String> {
         .filter(|a| a.filename != "job.log")
         .filter(|a| a.filename != "metadata.gz")
     {
-        push_center(&format!("Artifact: {}", artifact.filename));
+        column.push(format!("Artifact: {}", artifact.filename));
     }
 
-    lines
+    column
 }
 
-pub fn generate_job_overview(jobs: &Vec<Job>, width: usize) -> Vec<String> {
+pub fn generate_job_overview(jobs: &Vec<Job>, width: usize) -> String {
     let stages = get_stages(jobs);
     let width_per_stage = width as usize / stages.len() - 1;
 
     let mut lines_per_stage: HashMap<String, Vec<String>> = HashMap::new();
     for stage in &stages {
-        lines_per_stage.insert(
-            stage.clone(),
-            vec![
-                center_truncate(&"-".repeat(stage.len()), width_per_stage),
-                center_truncate(stage, width_per_stage),
-            ],
-        );
+        lines_per_stage.insert(stage.clone(), vec![format!("=====   {}   =====", stage)]);
     }
 
     for job in jobs.iter().rev() {
         lines_per_stage
             .get_mut(&job.stage)
             .unwrap()
-            .append(&mut get_job_lines(job, width_per_stage));
+            .append(&mut get_job_lines(job));
     }
 
-    let mut res = Vec::new();
-    let mut first_line = lines_per_stage.get(&stages[0]).unwrap()[0].clone();
-    let mut second_line = lines_per_stage.get(&stages[0]).unwrap()[1].clone();
-    for stage_name in stages.iter().skip(1) {
-        first_line = first_line + " " + &lines_per_stage.get(stage_name).unwrap()[0];
-        second_line = second_line + "|" + &lines_per_stage.get(stage_name).unwrap()[1];
+    let mut columns = Vec::new();
+    for stage_name in stages.iter() {
+        columns.push(lines_per_stage.get(stage_name).unwrap().clone());
     }
-    res.push(first_line);
-    res.push(second_line);
-
-    let max_length = lines_per_stage
-        .values()
-        .map(|v| v.len())
-        .reduce(usize::max)
-        .unwrap();
-    let empty = " ".repeat(width_per_stage);
-    for i in 2..max_length {
-        let mut line_segements = Vec::new();
-        for stage_name in stages.iter() {
-            line_segements.push(
-                lines_per_stage
-                    .get(stage_name)
-                    .unwrap()
-                    .get(i)
-                    .unwrap_or(&empty)
-                    .clone(),
-            );
-        }
-        res.push(line_segements.join(" "));
-    }
-
-    res
+    let alignments = stages
+        .iter()
+        .map(|_| RenderColumnsAlignment::Center)
+        .collect::<Vec<RenderColumnsAlignment>>();
+    let widths = stages
+        .iter()
+        .map(|_| width_per_stage)
+        .collect::<Vec<usize>>();
+    render_columns(columns, widths, alignments)
 }

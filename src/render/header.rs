@@ -1,20 +1,22 @@
-use super::util::center_truncate;
+use super::util::{render_columns, RenderColumnsAlignment};
 use crate::gitlabbing::GitlabProjectPipelines;
 
-pub fn render_header(project: &GitlabProjectPipelines, width: usize) -> Vec<String> {
-    let mut res = Vec::new();
-    let mut push_center = |text: String| {
-        res.push(center_truncate(&text, width));
-    };
-    push_center(format!("{}", project.name));
-    push_center(format!("{}", project.web_url));
+pub fn render_header(project: &GitlabProjectPipelines, width: usize) -> String {
+    let mut left = Vec::new();
+    left.push(format!("====   {}   ====", project.name));
+    left.push(project.web_url.clone());
     if project.description.is_some() {
-        push_center(format!("{}", project.description.as_ref().unwrap()));
+        left.push(project.description.clone().unwrap());
     }
     if project.pipelines.is_empty() {
-        push_center(format!(
+        left.push(format!(
             "There are no pipelines runing for the remote head of the current branch"
         ));
     }
-    res
+    left.push("".to_string());
+    render_columns(
+        vec![left],
+        vec![width],
+        vec![RenderColumnsAlignment::Center],
+    )
 }

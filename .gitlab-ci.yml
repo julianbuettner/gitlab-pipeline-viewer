@@ -1,0 +1,28 @@
+---
+
+stages:
+  - analysis
+  - build
+
+cargo-check:
+  stage: analysis
+  image: rust:1.61-slim-buster
+  script:
+    - apt-get update
+    - apt-get install libssl-dev pkg-config -y
+    - cargo rustc -- -D warnings
+
+cargo-format:
+  stage: analysis
+  image: rust:1.61-slim-buster
+  script:
+    - rustup component add rustfmt
+    - cargo fmt --check
+
+cargo-build:
+  stage: build
+  image: rust:1.61-slim-buster
+  script:
+    - apt-get update
+    - apt-get install libssl-dev pkg-config -y
+    - cargo build

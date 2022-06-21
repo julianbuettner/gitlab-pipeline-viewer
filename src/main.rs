@@ -47,11 +47,9 @@ fn main() {
             if stuff.is_err() {
                 render::render_error(stuff.err().unwrap());
             } else {
-                let lines = render::render(&stuff.unwrap());
+                let result = render::render(&stuff.unwrap());
                 render::clear_screen();
-                for l in lines {
-                    println!("{}", l);
-                }
+                print!("{}", result);
             }
         }
         let duration = time::Duration::from_millis(50);

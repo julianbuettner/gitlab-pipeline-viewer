@@ -158,10 +158,7 @@ mod test {
             ))
         );
         assert_eq!(
-            parse_origin(
-                &"https://gitlab.com/julianbuettner/gitlab-pipeline-viewer"
-                    .to_string()
-            ),
+            parse_origin(&"https://gitlab.com/julianbuettner/gitlab-pipeline-viewer".to_string()),
             Some((
                 "gitlab.com".to_string(),
                 "julianbuettner/gitlab-pipeline-viewer".to_string()

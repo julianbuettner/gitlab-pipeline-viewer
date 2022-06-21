@@ -1,25 +1,28 @@
-use super::util::{center_truncate, duration_to_string, status_to_emoji};
+use super::util::{duration_to_string, render_columns, status_to_emoji, RenderColumnsAlignment};
 use chrono::Utc;
 use gitlab::Pipeline;
 
-pub fn generate_pipeline_overview(pipeline: &Pipeline, width: usize) -> Vec<String> {
-    let mut result = Vec::new();
+pub fn generate_pipeline_overview(pipeline: &Pipeline, width: usize) -> String {
+    let mut pipeline_col = vec![];
 
-    let mut push_center = |text: &String| {
-        result.push(center_truncate(text, width));
-    };
+    pipeline_col.push(format!("====   Pipeline {}   ====", pipeline.id));
+    pipeline_col.push(pipeline.web_url.clone());
 
-    match &pipeline.ref_ {
-        None => (),
-        Some(v) => push_center(&v),
+    if pipeline.created_at.is_some() {
+        let now = Utc::now();
+        let delta = now - pipeline.created_at.unwrap();
+        let delta_ms = delta.num_milliseconds();
+        pipeline_col.push(format!(
+            "by {} {} ago",
+            pipeline.user.name,
+            duration_to_string(delta_ms as f64 / 1000.0),
+        ));
     }
-    push_center(pipeline.sha.value());
-    push_center(&pipeline.web_url);
-    match &pipeline.coverage {
-        None => (),
-        Some(v) => push_center(&format!("Coverage: {}%", v)),
-    }
-    push_center(&pipeline.user.name);
+
+    pipeline_col.push(match &pipeline.ref_ {
+        None => pipeline.sha.value().to_string(),
+        Some(v) => format!("{} @ {}", v.clone(), pipeline.sha.value()),
+    });
 
     let icon = status_to_emoji(pipeline.status);
 
@@ -31,25 +34,28 @@ pub fn generate_pipeline_overview(pipeline: &Pipeline, width: usize) -> Vec<Stri
         .unwrap_or("unknown");
 
     if pipeline.duration.is_none() {
-        push_center(&format!("{}   {}", icon, label,));
+        pipeline_col.push(format!("{}   {}", icon, label,));
     } else {
-        push_center(&format!(
-            "{}   {} in {}",
+        pipeline_col.push(format!(
+            "{}  {} in {}",
             icon,
             label,
             duration_to_string(pipeline.duration.unwrap_or(0) as f64)
         ));
     }
-    if pipeline.created_at.is_some() {
-        let now = Utc::now();
-        let delta = now - pipeline.created_at.unwrap();
-        let delta_ms = delta.num_milliseconds();
-        push_center(&format!(
-            "Created {} ago",
-            duration_to_string(delta_ms as f64 / 1000.0),
-        ));
+    match &pipeline.coverage {
+        None => (),
+        Some(v) => pipeline_col.push(format!("{}% coverage", v)),
     }
+    pipeline_col.push("".to_string());
+    pipeline_col.push("".to_string());
 
-    push_center(&"".to_string());
-    result
+    render_columns(
+        vec![pipeline_col],
+        vec![width],
+        vec![
+            RenderColumnsAlignment::Center,
+            RenderColumnsAlignment::Center,
+        ],
+    )
 }

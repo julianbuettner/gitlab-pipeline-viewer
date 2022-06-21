@@ -13,9 +13,15 @@ pub struct GitlabProjectPipelines {
 }
 
 fn parse_origin(origin: &String) -> Option<(String, String)> {
-    let origin_match =
-        Regex::new(r"(git@|https://)(?P<domain>[a-zA-Z0-9\.]+)(:|/)(?P<path>.*)\.git").unwrap();
-    match origin_match.captures(origin) {
+    let origin_match_ssh =
+        Regex::new(r"git@(?P<domain>[a-zA-Z0-9\.]+):(?P<path>.*)\.git$").unwrap();
+    let origin_match_http =
+        Regex::new(r"https?://(?P<domain>[a-zA-Z0-9\.]+)/(?P<path>.*)$").unwrap();
+    match origin_match_ssh.captures(origin) {
+        None => (),
+        Some(r) => return Some((r["domain"].to_string(), r["path"].to_string())),
+    };
+    match origin_match_http.captures(origin) {
         None => None,
         Some(r) => Some((r["domain"].to_string(), r["path"].to_string())),
     }
@@ -128,7 +134,7 @@ mod test {
     #[test]
     fn test_parse_origin() {
         assert_eq!(
-            parse_origin(&"https://gitlab.com:julianbuettner/pipelinetesting.git".to_string()),
+            parse_origin(&"https://gitlab.com/julianbuettner/pipelinetesting".to_string()),
             Some((
                 "gitlab.com".to_string(),
                 "julianbuettner/pipelinetesting".to_string()
@@ -149,6 +155,16 @@ mod test {
             Some((
                 "gitlab.com".to_string(),
                 "gitlab-container-release-monitor/release-monitor-frontend".to_string()
+            ))
+        );
+        assert_eq!(
+            parse_origin(
+                &"https://gitlab.com/julianbuettner/gitlab-pipeline-viewer"
+                    .to_string()
+            ),
+            Some((
+                "gitlab.com".to_string(),
+                "julianbuettner/gitlab-pipeline-viewer".to_string()
             ))
         );
     }
